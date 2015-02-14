@@ -1106,17 +1106,6 @@ now(void)
 	return ((uint64_t)sec * ts.tv_sec + (ts.tv_nsec / 1000));
 }
 
-void
-win(void)
-{
-
-	printf("The lock opens; you win!\n\n");
-	print_regs();
-	print_ips();
-	off = true;
-	unlocked = true;
-}
-
 #ifndef EMU_CHECK
 static void
 ins_inprec(char *dat, size_t sz)

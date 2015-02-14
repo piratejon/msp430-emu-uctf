@@ -28,8 +28,6 @@ FILE		*tracefile;
 
 GHashTable	*input_record;			// insns -> inprec
 
-static bool	 diverged;
-
 // Fast random numbers:
 // 18:16 < rmmh> int k = 0x123456; int rand() { k=30903*(k&65535)+(k>>16);
 //               return(k&65535); }

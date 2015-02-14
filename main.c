@@ -216,11 +216,13 @@ emulate1(void)
 		ASSERT((instr_size / 2) > 0 && (instr_size / 2) < 4,
 		    "instr_size: %d", instr_size);
 
+    if (tracehex)
+      fprintf(tracefile, "%02x:\t", pc_start);
 		for (unsigned i = 0; i < instr_size; i += 2) {
 			if (tracehex)
 				fprintf(tracefile, "%02x%02x ",
-				    (uns)membyte(pc_start+i),
-				    (uns)membyte(pc_start+i+1));
+				    (uns)membyte(pc_start+i+1),
+				    (uns)membyte(pc_start+i));
 			else {
 				size_t wr;
 				wr = fwrite(&memory[(pc_start + i) & 0xffff],

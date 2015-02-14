@@ -541,7 +541,8 @@ handle_single(uint16_t instr)
 		} else if (dstkind == OP_MEM) {
 
 			if (bw)
-				memory[dstval] = (res & 0xff);
+        memwritebyte(dstval, res & 0xff);
+				// memory[dstval] = (res & 0xff);
 			else
 				memwriteword(dstval, res);
 		} else if (dstkind == OP_CONST) {
@@ -742,7 +743,8 @@ handle_double(uint16_t instr)
 			registers[dstval] = res & 0xffff;
 		} else if (dstkind == OP_MEM) {
 			if (bw)
-				memory[dstval] = (res & 0xff);
+        memwritebyte(dstval, res & 0xff);
+				// memory[dstval] = (res & 0xff);
 			else
 				memwriteword(dstval, res);
 		} else
@@ -1035,6 +1037,12 @@ memwriteword(uint16_t addr, uint16_t word)
 	    (uns)addr);
 	memory[addr] = word & 0xff;
 	memory[addr+1] = (word >> 8) & 0xff;
+}
+
+void
+memwritebyte(uint16_t addr, uint8_t byte)
+{
+  memory[addr] = byte;
 }
 #endif
 

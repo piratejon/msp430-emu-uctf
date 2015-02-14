@@ -112,6 +112,7 @@ uint16_t	 membyte(uint16_t addr);
 #ifndef REALLYFAST
 uint16_t	 memword(uint16_t addr);
 void		 memwriteword(uint16_t addr, uint16_t word);
+void		 memwritebyte(uint16_t addr, uint8_t byte);
 #endif
 void		 mem2reg(uint16_t addr, unsigned reg);
 void		 reg2mem(unsigned reg, uint16_t addr);

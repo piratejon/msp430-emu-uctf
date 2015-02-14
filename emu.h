@@ -31,7 +31,6 @@ extern uint16_t		 pc_start;
 extern uint8_t		 pageprot[0x100];
 extern uint16_t		 registers[16];
 extern uint8_t		 memory[0x10000];
-extern GHashTable	*memory_symbols;		// addr -> struct sexp*
 extern bool		 off;
 extern bool		 unlocked;
 extern bool		 replay_mode;

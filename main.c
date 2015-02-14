@@ -141,7 +141,6 @@ main(int argc, char **argv)
 		idx += rd;
 	}
 	printf("Loaded %zu words from image.\n", idx/2);
-	memwriteword(0x10, 0x4130); // callgate
 
 	fclose(romfile);
 
@@ -218,6 +217,11 @@ emulate1(void)
 
     if (tracehex)
       fprintf(tracefile, "%02x:\t", pc_start);
+    else {
+      size_t wr;
+      wr = fwrite(&pc_start, 2, 1, tracefile);
+      ASSERT(wr == 1, "fwrite: %s", strerror(errno));
+    }
 		for (unsigned i = 0; i < instr_size; i += 2) {
 			if (tracehex)
 				fprintf(tracefile, "%02x%02x ",
@@ -1115,73 +1119,6 @@ now(void)
 	ASSERT(rc == 0, "clock_gettime: %d:%s", errno, strerror(errno));
 
 	return ((uint64_t)sec * ts.tv_sec + (ts.tv_nsec / 1000));
-}
-
-void
-callgate(unsigned op)
-{
-	uint16_t argaddr = registers[SP] + 8,
-		 getsaddr;
-	unsigned bufsz;
-
-	switch (op) {
-	case 0x0:
-#ifndef QUIET
-		if (!replay_mode)
-			putchar((char)membyte(argaddr));
-#endif
-		break;
-	case 0x2:
-		getsaddr = memword(argaddr);
-		bufsz = (uns)memword(argaddr+2);
-		getsn(getsaddr, bufsz);
-		break;
-	case 0x10:
-		// Turn on DEP
-		if (dep_enabled)
-			break;
-		for (unsigned i = 0; i < sizeof(pageprot); i++) {
-			if ((pageprot[i] & DEP_W) && (pageprot[i] & DEP_X)) {
-				printf("Enable DEP invalid: page %u +WX!\n",
-				    i);
-				abort_nodump();
-			}
-		}
-		dep_enabled = true;
-		break;
-	case 0x11:
-		// Set page protection
-		{
-		uint16_t page, wr;
-		page = memword(argaddr);
-		wr = memword(argaddr+2);
-
-		ASSERT(page < 0x100, "page");
-		ASSERT(wr == 0 || wr == 1, "w/x");
-
-		pageprot[page] &= ~( wr? DEP_X : DEP_W );
-		}
-		break;
-	case 0x20:
-		// RNG
-		registers[15] = 0;
-		break;
-	case 0x7d:
-		// writes a non-zero byte to supplied pointer if password is
-		// correct (arg[0]). password is never correct.
-		memory[memword(argaddr+2)] = 0;
-		break;
-	case 0x7e:
-		// triggers unlock if password is correct; nop
-		break;
-	case 0x7f:
-		// unlock.
-		win();
-		break;
-	default:
-		unhandled(0x4130);
-		break;
-	}
 }
 
 void

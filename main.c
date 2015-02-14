@@ -20,7 +20,6 @@ uint64_t	 insnreplaylim;
 uint16_t	 syminplen;
 bool		 off;
 bool		 unlocked;
-bool		 dep_enabled;
 bool		 replay_mode;
 bool		 ctrlc;
 
@@ -57,7 +56,6 @@ init(void)
 	//memset(memory, 0, sizeof(memory));
 	memset(registers, 0, sizeof registers);
 	memset(pageprot, DEP_R|DEP_W|DEP_X, sizeof pageprot);
-	dep_enabled = false;
 }
 
 void
@@ -184,7 +182,6 @@ emulate1(void)
 	ASSERT((registers[PC] & 0x1) == 0, "insn addr unaligned");
 #endif
 
-	depcheck(registers[PC], DEP_X);
 	instr = memword(registers[PC]);
 
 	// dec r15; jnz -2 busy loop
@@ -546,7 +543,6 @@ handle_single(uint16_t instr)
 				registers[dstval] = res & 0xffff;
 		} else if (dstkind == OP_MEM) {
 
-			depcheck(dstval, DEP_W);
 			if (bw)
 				memory[dstval] = (res & 0xff);
 			else
@@ -748,7 +744,6 @@ handle_double(uint16_t instr)
 
 			registers[dstval] = res & 0xffff;
 		} else if (dstkind == OP_MEM) {
-		depcheck(dstval, DEP_W);
 			if (bw)
 				memory[dstval] = (res & 0xff);
 			else
@@ -1197,17 +1192,3 @@ out:
 }
 #endif
 
-void
-depcheck(uint16_t addr, unsigned perm)
-{
-
-	if (!dep_enabled)
-		return;
-
-	if (pageprot[addr >> 8] & perm)
-		return;
-
-	printf("DEP: Page 0x%02x is not %s!\n", (uns)addr >> 8,
-	    (perm == DEP_W)? "writable" : "executable");
-	abort_nodump();
-}

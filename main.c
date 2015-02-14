@@ -53,7 +53,6 @@ init(void)
 	start = now();
 	//memset(memory, 0, sizeof(memory));
 	memset(registers, 0, sizeof registers);
-	memset(pageprot, DEP_R|DEP_W|DEP_X, sizeof pageprot);
 }
 
 void

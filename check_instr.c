@@ -5,7 +5,6 @@
 #define CODE_STEP   (0x4500)
 #define CODE_REPEAT (0x4400)
 #define PC_LOAD     (0xfffe)
-#define CALL_GATE   (0x0010)
 
 #define ck_assert_flags(flags) _ck_assert_flags(__LINE__, flags)
 
@@ -42,9 +41,6 @@ setup_machine(void)
 
 	// zero regs/mem, clear symbols
 	init();
-
-	// Setup callgate (ret)
-	install_words_le(&ret, CALL_GATE, sizeof(ret));
 
 	// Setup initial PC value @4400 (full emulation)
 	install_words_le(&run, PC_LOAD, sizeof(run));

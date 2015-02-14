@@ -288,14 +288,6 @@ emulate(void)
 		}
 #endif
 
-		if (registers[PC] == 0x0010) {
-			// Callgate
-			if (registers[SR] & 0x8000) {
-				unsigned op = (registers[SR] >> 8) & 0x7f;
-				callgate(op);
-			}
-		}
-
 		if (off)
 			break;
 

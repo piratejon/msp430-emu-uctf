@@ -5,20 +5,20 @@ EXTRAFLAGS=
 NEWGCCFLAGS=-grecord-gcc-switches -fstack-protector-strong --param=ssp-buffer-size=4
 OPTFLAGS=-O3 -g -pipe -m64 -mtune=native -march=native -flto $(NEWGCCFLAGS)
 DBGFLAGS=-O0 -g -pipe -m64 -mtune=native -march=native -flto $(NEWGCCFLAGS)
-GLIB_FLAGS=`pkg-config --cflags glib-2.0`
-GLIB_LDFLAGS=`pkg-config --libs glib-2.0`
+PKG_FLAGS=`pkg-config --cflags glib-2.0 json-c`
+PKG_LDFLAGS=`pkg-config --libs glib-2.0 json-c`
 
 msp430-emu: main.c emu.h gdbstub.c
-	gcc $(OPTFLAGS) $(SAFEFLAGS) $(GLIB_FLAGS) $< gdbstub.c -o $@ $(GLIB_LDFLAGS)
+	gcc $(OPTFLAGS) $(SAFEFLAGS) $(PKG_FLAGS) $< gdbstub.c -o $@ $(PKG_LDFLAGS)
 
 msp430-sym: main.c emu.h gdbstub.c
-	gcc $(OPTFLAGS) $(SAFEFLAGS) $(GLIB_FLAGS) $< gdbstub.c -o $@ $(GLIB_LDFLAGS)
+	gcc $(OPTFLAGS) $(SAFEFLAGS) $(PKG_FLAGS) $< gdbstub.c -o $@ $(PKG_LDFLAGS)
 
 check: check_instr
 	./check_instr
 
 check_instr: check_instr.c main.c emu.h
-	gcc $(DBGFLAGS) $(FLAGS) $(GLIB_FLAGS) -DEMU_CHECK $< main.c -lcheck $(GLIB_LDFLAGS) $(EXTRAFLAGS) -o $@
+	gcc $(DBGFLAGS) $(FLAGS) $(PKG_FLAGS) -DEMU_CHECK $< main.c -lcheck $(PKG_LDFLAGS) $(EXTRAFLAGS) -o $@
 
 clean:
 	rm -f check_instr msp430-sym msp430-emu

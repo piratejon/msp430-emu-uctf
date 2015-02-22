@@ -1,4 +1,5 @@
 #include "emu.h"
+#include "utloader.h"
 
 #include <check.h>
 
@@ -1369,6 +1370,12 @@ START_TEST(test_bit)
 }
 END_TEST
 
+START_TEST(imagetests)
+{
+
+}
+END_TEST
+
 Suite *
 suite_instr(void)
 {
@@ -1498,6 +1505,10 @@ suite_instr(void)
 	tcase_add_checked_fixture(tbit, setup_machine, teardown_machine);
 	tcase_add_test(tbit, test_bit);
 	suite_add_tcase(s, tbit);
+
+  TCase *tut = tcase_create("real_tests");
+  tcase_add_test(tut, imagetests);
+  suite_add_tcase(s, tut);
 
 	return s;
 }

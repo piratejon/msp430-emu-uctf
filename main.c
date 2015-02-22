@@ -24,7 +24,7 @@ bool     replay_mode;
 bool     ctrlc;
 
 bool     tracehex;
-FILE    *tracefile;
+FILE    *tracefile, *unit_test_file;
 
 GHashTable  *input_record;      // insns -> inprec
 
@@ -81,19 +81,36 @@ usage(void)
     exit(1);
 }
 
+void
+loadromfile(char * romfname) {
+  size_t rd, idx;
+  FILE *romfile;
+
+  romfile = fopen(romfname, "rb");
+  ASSERT(romfile, "fopen");
+
+  idx = 0;
+  while (true) {
+    rd = fread(&memory[idx], 1, sizeof(memory) - idx, romfile);
+    if (rd == 0)
+      break;
+    idx += rd;
+  }
+  printf("Loaded %zu words from image.\n", idx/2);
+
+  fclose(romfile);
+}
+
 int
 main(int argc, char **argv)
 {
-  size_t rd, idx;
-  const char *romfname;
-  FILE *romfile;
   int opt;
   bool waitgdb = false;
 
   if (argc < 2)
     usage();
 
-  while ((opt = getopt(argc, argv, "gt:x")) != -1) {
+  while ((opt = getopt(argc, argv, "gxt:u:")) != -1) {
     switch (opt) {
     case 'g':
       waitgdb = true;
@@ -109,6 +126,13 @@ main(int argc, char **argv)
     case 'x':
       tracehex = true;
       break;
+    case 'u':
+      unit_test_file = fopen(optarg, "rb");
+      if (!unit_test_file) {
+        printf("Failed to open unit test file `%s'\n", optarg);
+        exit(1);
+      }
+      break;
     default:
       usage();
       break;
@@ -118,30 +142,19 @@ main(int argc, char **argv)
   if (optind >= argc)
     usage();
 
-  romfname = argv[optind];
-
-  romfile = fopen(romfname, "rb");
-  ASSERT(romfile, "fopen");
-
   input_record = g_hash_table_new_full(NULL, NULL, NULL, free);
   ASSERT(input_record, "x");
 
   init();
 
-  idx = 0;
-  while (true) {
-    rd = fread(&memory[idx], 1, sizeof(memory) - idx, romfile);
-    if (rd == 0)
-      break;
-    idx += rd;
-  }
-  printf("Loaded %zu words from image.\n", idx/2);
-
-  fclose(romfile);
+  loadromfile(argv[optind]);
 
   signal(SIGINT, ctrlc_handler);
 
-  registers[PC] = memword(0xfffe);
+  if (unit_test_file) {
+  } else {
+    registers[PC] = memword(0xfffe);
+  }
 
   if (waitgdb)
     gdbstub_init();
@@ -156,6 +169,9 @@ main(int argc, char **argv)
 
   if (tracefile)
     fclose(tracefile);
+
+  if (unit_test_file)
+    fclose(unit_test_file);
 
   return 0;
 }

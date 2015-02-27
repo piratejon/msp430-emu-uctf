@@ -10,7 +10,6 @@ struct inprec {
 
 uint16_t   pc_start,
      instr_size;
-uint8_t     pageprot[0x100];
 uint16_t   registers[16];
 uint8_t     memory[0x10000];
 uint64_t   start;

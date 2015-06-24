@@ -1,12 +1,24 @@
 #include <unistd.h>
+#include <getopt.h>
+
+#include <signal.h>
 
 #include "emu.h"
 
+bool		 stepone;	// Single-step?
+
+/*
 struct inprec {
   uint64_t   ir_insn;
   size_t     ir_len;
   char     ir_inp[0];
 };
+*/
+
+bool use_default_entry_point = true;
+uint16_t default_entry_point_address = 0xfffe;
+uint16_t entry_point;
+uint16_t exit_point = 0x0001; // odd is an invalid PC so this should never match a real PC value
 
 uint16_t   pc_start,
      instr_size;
@@ -23,9 +35,37 @@ bool     replay_mode;
 bool     ctrlc;
 
 bool     tracehex;
-FILE    *tracefile, *unit_test_file;
+FILE    *tracefile, *memfile;
 
-GHashTable  *input_record;      // insns -> inprec
+void ASSERT(int cond, const char * fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  if (!cond) {
+    vfprintf(stderr, fmt, args);
+    exit(1);
+  }
+  va_end(args);
+}
+
+void
+loadromfile(char * romfname) {
+  size_t rd, idx;
+  FILE *romfile;
+
+  romfile = fopen(romfname, "rb");
+  ASSERT(!!romfile, "fopen");
+
+  idx = 0;
+  while (true) {
+    rd = fread(&memory[idx], 1, sizeof(memory) - idx, romfile);
+    if (rd == 0)
+      break;
+    idx += rd;
+  }
+  // printf("Loaded %zu words from image.\n", idx/2);
+
+  fclose(romfile);
+}
 
 // Fast random numbers:
 // 18:16 < rmmh> int k = 0x123456; int rand() { k=30903*(k&65535)+(k>>16);
@@ -34,13 +74,15 @@ GHashTable  *input_record;      // insns -> inprec
 void
 print_ips(void)
 {
-  uint64_t end = now();
+  uint64_t end = 0; // ;now();
 
   if (end == start)
     end++;
 
+  /*
   printf("Approx. %ju instructions per second (Total: %ju).\n",
       (uintmax_t)insns * 1000000 / (end - start), (uintmax_t)insns);
+      */
 }
 
 void
@@ -49,7 +91,8 @@ init(void)
 
   insns = 0;
   off = unlocked = false;
-  start = now();
+  // start = now();
+  start = 0;
   //memset(memory, 0, sizeof(memory));
   memset(registers, 0, sizeof registers);
 }
@@ -76,7 +119,9 @@ usage(void)
     "  FLAGS:\n"
     "    -g            Debug with GDB\n"
     "    -t=TRACEFILE  Emit instruction trace\n"
-    "    -x            Trace output in hex\n");
+    "    -x            Trace output in hex\n"
+    "    -b=abcd       hexadecimal entry point\n"
+    "    -e=fedc       hexadecimal exit point\n");
     exit(1);
 }
 
@@ -89,7 +134,7 @@ main(int argc, char **argv)
   if (argc < 2)
     usage();
 
-  while ((opt = getopt(argc, argv, "gxt:u:")) != -1) {
+  while ((opt = getopt(argc, argv, "gxt:b:e:m:")) != -1) {
     switch (opt) {
     case 'g':
       waitgdb = true;
@@ -105,10 +150,17 @@ main(int argc, char **argv)
     case 'x':
       tracehex = true;
       break;
-    case 'u':
-      unit_test_file = fopen(optarg, "rb");
-      if (!unit_test_file) {
-        printf("Failed to open unit test file `%s'\n", optarg);
+    case 'b':
+      entry_point = strtol(optarg, NULL, 16);
+      use_default_entry_point = false;
+      break;
+    case 'e':
+      exit_point = strtol(optarg, NULL, 16);
+      break;
+    case 'm':
+      memfile = fopen(optarg, "wb");
+      if (!memfile) {
+        printf("Failed to open memfile `%s'\n", optarg);
         exit(1);
       }
       break;
@@ -121,27 +173,21 @@ main(int argc, char **argv)
   if (optind >= argc)
     usage();
 
-  input_record = g_hash_table_new_full(NULL, NULL, NULL, free);
-  ASSERT(input_record, "x");
-
   init();
 
   loadromfile(argv[optind]);
 
   signal(SIGINT, ctrlc_handler);
 
-  if (unit_test_file) {
+  if (use_default_entry_point) {
+    registers[PC] = memword(default_entry_point_address);
   } else {
-    registers[PC] = memword(0xfffe);
+    registers[PC] = entry_point;
   }
-
-  if (waitgdb)
-    gdbstub_init();
 
   emulate();
 
   printf("Got CPUOFF, stopped.\n");
-  gdbstub_stopped();
 
   print_regs();
   print_ips();
@@ -149,8 +195,8 @@ main(int argc, char **argv)
   if (tracefile)
     fclose(tracefile);
 
-  if (unit_test_file)
-    fclose(unit_test_file);
+  if (memfile)
+    fclose(memfile);
 
   return 0;
 }
@@ -176,6 +222,7 @@ emulate1(void)
 
   instr = memword(registers[PC]);
 
+  /*
   // dec r15; jnz -2 busy loop
   if ((instr == 0x831f || instr == 0x533f) &&
       memword(registers[PC]+2) == 0x23fe) {
@@ -187,6 +234,7 @@ emulate1(void)
     registers[PC] += 4;
     goto out;
   }
+  */
 
   switch (bits(instr, 15, 13)) {
   case 0:
@@ -228,18 +276,15 @@ emulate1(void)
       fprintf(tracefile, "\n");
   }
 
-out:
+// out:
   insns++;
 }
 
 static void
 dumpmem(uint16_t addr, unsigned len)
 {
-
-  for (unsigned i = 0; i < len; i++) {
-    printf("%02x", membyte(addr+i));
-    if (i % 0x10 == 0xf)
-      printf("\n");
+  if (memfile) {
+    fwrite(memory+addr, len, sizeof(*memory), memfile);
   }
 }
 
@@ -267,8 +312,6 @@ emulate(void)
       stepone = true;
     }
 
-    if (!replay_mode)
-      gdbstub_intr();
 
     if (replay_mode && insnreplaylim < insns) {
       init();
@@ -283,7 +326,7 @@ emulate(void)
     emulate1();
 
     ASSERT(registers[CG] == 0, "CG");
-    if (off || registers[SR] & SR_CPUOFF) {
+    if (off || registers[SR] & SR_CPUOFF || (registers[PC] == exit_point)) {
       off = true;
       break;
     }
@@ -295,6 +338,8 @@ emulate(void)
       break;
     }
   }
+
+  dumpmem(0x0000, 0x10000);
 }
 
 void
@@ -960,9 +1005,6 @@ abort_nodump(void)
   print_regs();
   print_ips();
 
-#ifndef EMU_CHECK
-  gdbstub_stopped();
-#endif
   exit(1);
 }
 
@@ -1099,85 +1141,15 @@ andflags(uint16_t res, uint16_t *set, uint16_t *clr)
 uint64_t
 now(void)
 {
+  /*
   struct timespec ts;
   int rc;
 
   rc = clock_gettime(CLOCK_REALTIME, &ts);
   ASSERT(rc == 0, "clock_gettime: %d:%s", errno, strerror(errno));
+  */
 
-  return ((uint64_t)sec * ts.tv_sec + (ts.tv_nsec / 1000));
+  // return ((uint64_t)sec * ts.tv_sec + (ts.tv_nsec / 1000));
+  return start + 1;
 }
-
-#ifndef EMU_CHECK
-static void
-ins_inprec(char *dat, size_t sz)
-{
-  struct inprec *new_inp = malloc(sizeof *new_inp + sz + 1);
-
-  ASSERT(new_inp, "oom");
-
-  new_inp->ir_insn = insns;
-  new_inp->ir_len = sz + 1;
-  memcpy(new_inp->ir_inp, dat, sz);
-  new_inp->ir_inp[sz] = 0;
-
-  g_hash_table_insert(input_record, ptr(insns), new_inp);
-}
-
-void
-getsn(uint16_t addr, uint16_t bufsz)
-{
-  struct inprec *prev_inp;
-  char *buf;
-
-  ASSERT((size_t)addr + bufsz < 0xffff, "overflow");
-  //memset(&memory[addr], 0, bufsz);
-
-  if (bufsz <= 1)
-    return;
-
-  prev_inp = g_hash_table_lookup(input_record, ptr(insns));
-  if (replay_mode)
-    ASSERT(prev_inp, "input at insn:%ju not found!\n",
-        (uintmax_t)insns);
-
-  if (prev_inp) {
-    memcpy(&memory[addr], prev_inp->ir_inp, prev_inp->ir_len);
-    return;
-  }
-
-  printf("Gets (':'-prefix for hex)> ");
-  fflush(stdout);
-
-  buf = malloc(2 * bufsz + 2);
-  ASSERT(buf, "oom");
-  buf[0] = 0;
-
-  if (fgets(buf, 2 * bufsz + 2, stdin) == NULL)
-    goto out;
-
-  if (buf[0] != ':') {
-    strncpy((char*)&memory[addr], buf, bufsz);
-    memory[addr + strlen(buf)] = 0;
-    ins_inprec(buf, bufsz);
-  } else {
-    unsigned i;
-    for (i = 0; i < bufsz - 1u; i++) {
-      unsigned byte;
-
-      if (buf[2*i+1] == 0 || buf[2*i+2] == 0) {
-        memory[addr+i] = 0;
-        break;
-      }
-
-      sscanf(&buf[2*i+1], "%02x", &byte);
-      //printf("%02x", byte);
-      memory[addr + i] = byte;
-    }
-    ins_inprec((void*)&memory[addr], i);
-  }
-out:
-  free(buf);
-}
-#endif
 

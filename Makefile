@@ -1,6 +1,6 @@
 CC=clang
 FLAGS=-Wall -Wextra
-LDFLAGS=-v
+LDFLAGS=
 #SAFEFLAGS=$(FLAGS) -Wp,-D_FORTIFY_SOURCE=2 -fexceptions
 #OPTFLAGS=`rpm -E %optflags` -O3
 EXTRAFLAGS=
@@ -16,8 +16,11 @@ msp430-emu: main.c
 msp430-sym: main.c emu.h gdbstub.c
 	$(CC) $(OPTFLAGS) $(SAFEFLAGS) $(PKG_FLAGS) $< gdbstub.c -o $@
 
-check: check_instr
-	./check_instr
+#check: check_instr
+#	./check_instr
+check: LDFLAGS+=-lcmocka
+check: unit_tests
+	./unit_tests
 
 check_instr: check_instr.c main.c emu.h
 	$(CC) $(DBGFLAGS) $(FLAGS) $(PKG_FLAGS) -DEMU_CHECK $< main.c -lcheck $(PKG_LDFLAGS) $(EXTRAFLAGS) -o $@

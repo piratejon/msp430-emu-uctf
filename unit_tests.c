@@ -5,7 +5,7 @@
 #include <cmocka.h>
 
 static void null_test_success(void **state) {
-  (void) state;
+  assert_non_null(state);
 }
 
 int main(void) {
